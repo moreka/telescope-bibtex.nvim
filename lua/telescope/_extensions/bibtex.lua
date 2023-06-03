@@ -9,13 +9,12 @@ end
 
 local finders = require('telescope.finders')
 local pickers = require('telescope.pickers')
+local entry_display = require('telescope.pickers.entry_display')
 local actions = require('telescope.actions')
 local action_state = require('telescope.actions.state')
-local previewers = require('telescope.previewers')
 local conf = require('telescope.config').values
 local scan = require('plenary.scandir')
 local path = require('plenary.path')
-local putils = require('telescope.previewers.utils')
 local loop = vim.loop
 
 local depth = 1
@@ -73,7 +72,7 @@ local function getBibFiles(dir)
     on_insert = function(file)
       local p = path:new(file):absolute()
       if not utils.file_present(files, p) then
-        table.insert(files, { name = p , mtime = 0, entries = {} })
+        table.insert(files, { name = p, mtime = 0, entries = {} })
       end
     end,
   })
@@ -230,6 +229,30 @@ local function parse_context_fallback(opts)
   return context_fallback
 end
 
+local displayer = entry_display.create({
+  separator = ' ',
+  items = {
+    { width = 4 },
+    {},
+    {},
+  },
+})
+
+local function make_display(entry)
+  if entry.id.search_keys then
+    return displayer({
+      { entry.id.search_keys.year, 'TelescopeResultsNumber' },
+      { entry.id.search_keys.author, 'TelescopeResultsField' },
+      { entry.id.search_keys.title, 'TelescopeResultsNormal' },
+    })
+  end
+  return displayer({
+    {},
+    {},
+    { entry.value },
+  })
+end
+
 local function bibtex_picker(opts)
   opts = opts or {}
   local format_string = parse_format_string(opts)
@@ -252,26 +275,9 @@ local function bibtex_picker(opts)
           return {
             value = search_string,
             ordinal = search_string,
-            display = display_string,
+            display = make_display,
             id = line,
           }
-        end,
-      }),
-      previewer = previewers.new_buffer_previewer({
-        define_preview = function(self, entry, status)
-          vim.api.nvim_buf_set_lines(
-            self.state.bufnr,
-            0,
-            -1,
-            true,
-            results[entry.index].content
-          )
-          putils.highlighter(self.state.bufnr, 'bib')
-          vim.api.nvim_win_set_option(
-            status.preview_win,
-            'wrap',
-            utils.parse_wrap(opts, wrap)
-          )
         end,
       }),
       sorter = conf.generic_sorter(opts),
