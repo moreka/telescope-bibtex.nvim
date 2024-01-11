@@ -23,6 +23,7 @@ local formats = {}
 formats['tex'] = '\\cite{%s}'
 formats['md'] = '@%s'
 formats['markdown'] = '@%s'
+formats['typst'] = '@%s'
 formats['rmd'] = '@%s'
 formats['quarto'] = '@%s'
 formats['pandoc'] = '@%s'
@@ -126,11 +127,18 @@ local function read_file(file)
       for _, key in pairs(search_keys) do
         local key_pattern = utils.construct_case_insensitive_pattern(key)
         local match_base = '%f[%w]' .. key_pattern
-        local s = entry:match(match_base .. '%s*=%s*%b{}')
-          or entry:match(match_base .. '%s*=%s*%b""')
-          or entry:match(match_base .. '%s*=%s*%d+')
+        local s = nil
+        local bracket_match = entry:match(match_base .. '%s*=%s*%b{}')
+        local quote_match = entry:match(match_base .. '%s*=%s*%b""')
+        local number_match = entry:match(match_base .. '%s*=%s*%d+')
+        if bracket_match ~= nil then
+          s = bracket_match:match('%b{}')
+        elseif quote_match ~= nil then
+          s = quote_match:match('%b""')
+        elseif number_match ~= nil then
+          s =  number_match:match('%d+')
+        end
         if s ~= nil then
-          s = s:match('%b{}') or s:match('%b""') or s:match('%d+')
           s = s:gsub('["{}\n]', ''):gsub('%s%s+', ' ')
           search_relevants[label][key] = vim.trim(s)
         end
@@ -197,7 +205,9 @@ end
 
 local function parse_format_string(opts)
   local format_string = nil
-  if opts.format ~= nil then
+  if opts.format_string ~= nil then
+    format_string = opts.format_string
+  elseif opts.format ~= nil then
     format_string = formats[opts.format]
   elseif use_auto_format then
     format_string = formats[vim.bo.filetype]
